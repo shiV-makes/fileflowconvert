@@ -120,7 +120,7 @@ function Index() {
       <nav className="sticky top-0 z-50 border-b border-ink/5 bg-surface/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
           <div className="flex items-center gap-8">
-            <span className="text-lg font-semibold tracking-tight">OmniConvert</span>
+            <span className="text-lg font-semibold tracking-tight">FileFlow</span>
             <div className="hidden gap-6 text-sm font-medium text-ink-muted md:flex">
               <a href="#tools" className="transition-colors hover:text-ink">
                 Tools
@@ -129,17 +129,9 @@ function Index() {
                 API
               </a>
               <a href="#pricing" className="transition-colors hover:text-ink">
-                Pricing
+                Free
               </a>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink">
-              Sign In
-            </button>
-            <button className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm ring-1 ring-primary transition-colors hover:opacity-90">
-              Get Started
-            </button>
           </div>
         </div>
       </nav>
