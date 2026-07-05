@@ -290,27 +290,27 @@ function Index() {
                 return (
                   <div
                     key={f.code}
-                    className="group flex flex-col justify-between rounded-xl bg-ink p-5 ring-1 ring-white/10 lg:col-span-2"
+                    className="group flex flex-col justify-between rounded-xl bg-card p-5 ring-1 ring-brand/30 lg:col-span-2"
                   >
                     <div>
                       <div className="mb-4 flex items-center gap-2">
-                        <div className="flex size-8 items-center justify-center rounded bg-brand ring-1 ring-white/10">
+                        <div className="flex size-8 items-center justify-center rounded bg-brand ring-1 ring-ink/5">
                           <Icon className="size-4 text-brand-foreground" />
                         </div>
                         <span className="text-[10px] font-semibold uppercase tracking-widest text-brand">
                           Professional Grade
                         </span>
                       </div>
-                      <h3 className="mb-2 text-lg font-semibold text-primary-foreground">
+                      <h3 className="mb-2 text-lg font-semibold text-ink">
                         {f.name}
                       </h3>
-                      <p className="max-w-[40ch] text-sm text-ink-subtle">{f.description}</p>
+                      <p className="max-w-[40ch] text-sm text-ink-muted">{f.description}</p>
                     </div>
                     <div className="mt-6 flex gap-2">
-                      <span className="rounded bg-white/5 px-2 py-1 font-mono text-[10px] text-ink-subtle">
+                      <span className="rounded bg-muted px-2 py-1 font-mono text-[10px] text-ink-subtle ring-1 ring-ink/5">
                         {f.count} TOOLS
                       </span>
-                      <span className="rounded bg-white/5 px-2 py-1 font-mono text-[10px] text-ink-subtle">
+                      <span className="rounded bg-muted px-2 py-1 font-mono text-[10px] text-ink-subtle ring-1 ring-ink/5">
                         OCR READY
                       </span>
                     </div>
