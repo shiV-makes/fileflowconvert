@@ -1,24 +1,485 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
+import {
+  ChevronDown,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Music,
+  Archive,
+  Code2,
+  Box,
+  BookOpen,
+  Table as TableIcon,
+  Presentation,
+  Type as TypeIcon,
+  Sparkles,
+  ScanText,
+  QrCode,
+  Link2,
+  Youtube,
+  FileStack,
+  Search,
+  Plus,
+  Upload,
+  Zap,
+  Shield,
+  Cpu,
+} from "lucide-react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
 export const Route = createFileRoute("/")({
   component: Index,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
+type Family = {
+  code: string;
+  name: string;
+  formats: string;
+  count: number;
+  highlight?: boolean;
+  description?: string;
+};
+
+const FAMILIES: Family[] = [
+  { code: "DOC", name: "Documents", formats: "PDF, DOCX, TXT, ODT, RTF, EPUB", count: 24 },
+  { code: "IMG", name: "Images", formats: "PNG, JPG, WEBP, AVIF, HEIC, SVG", count: 42 },
+  {
+    code: "PDF",
+    name: "PDF Mega Suite",
+    formats: "Merge, split, compress, sign",
+    count: 12,
+    highlight: true,
+    description: "Merge, split, compress, and sign. Full OCR support for 40+ languages.",
+  },
+  { code: "VID", name: "Video", formats: "MP4, MOV, MKV, WEBM, AVI", count: 28 },
+  { code: "AUD", name: "Audio", formats: "MP3, WAV, FLAC, M4A, OGG", count: 18 },
+  { code: "ARC", name: "Archives", formats: "ZIP, 7Z, RAR, TAR, GZ", count: 10 },
+  { code: "DAT", name: "Code & Data", formats: "JSON, XML, CSV, YAML, SQL", count: 16 },
+  { code: "3D", name: "CAD / 3D", formats: "STL, OBJ, FBX, GLTF, PLY", count: 14 },
+  { code: "XLS", name: "Spreadsheets", formats: "XLSX, XLS, CSV, TSV, ODS", count: 12 },
+  { code: "PPT", name: "Presentations", formats: "PPTX, PPT, ODP, PDF", count: 9 },
+  { code: "EPB", name: "eBooks", formats: "EPUB, MOBI, AZW3, PDF", count: 11 },
+  { code: "TTF", name: "Fonts", formats: "TTF, OTF, WOFF, WOFF2", count: 8 },
+  { code: "OCR", name: "OCR", formats: "Image → text, 40+ languages", count: 6 },
+  { code: "AI", name: "AI Image Tools", formats: "Upscale, background, colorize", count: 7 },
+  { code: "URL", name: "URL Tools", formats: "URL → PDF, screenshot, markdown", count: 8 },
+  { code: "YT", name: "Video Extractors", formats: "YouTube, TikTok, Vimeo, IG", count: 12 },
+  { code: "QR", name: "QR & Barcodes", formats: "QR, UPC, EAN, Code128", count: 5 },
+  { code: "TXT", name: "Text Tools", formats: "Text ↔ Speech, MD ↔ HTML", count: 9 },
+];
+
+const ICONS: Record<string, typeof FileText> = {
+  DOC: FileText,
+  IMG: ImageIcon,
+  PDF: FileStack,
+  VID: Video,
+  AUD: Music,
+  ARC: Archive,
+  DAT: Code2,
+  "3D": Box,
+  XLS: TableIcon,
+  PPT: Presentation,
+  EPB: BookOpen,
+  TTF: TypeIcon,
+  OCR: ScanText,
+  AI: Sparkles,
+  URL: Link2,
+  YT: Youtube,
+  QR: QrCode,
+  TXT: TypeIcon,
+};
+
+const POPULAR = [
+  "PDF → Word",
+  "PNG → JPG",
+  "MP4 → GIF",
+  "HEIC → PNG",
+  "YouTube → MP3",
+  "WEBP → PNG",
+  "CSV → Excel",
+];
+
 function Index() {
+  const [tab, setTab] = useState<"file" | "url" | "text">("file");
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return FAMILIES;
+    return FAMILIES.filter(
+      (f) =>
+        f.name.toLowerCase().includes(q) ||
+        f.formats.toLowerCase().includes(q) ||
+        f.code.toLowerCase().includes(q),
+    );
+  }, [query]);
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
+    <div className="min-h-screen bg-surface text-ink">
+      {/* Header */}
+      <nav className="sticky top-0 z-50 border-b border-ink/5 bg-surface/80 backdrop-blur-md">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+          <div className="flex items-center gap-8">
+            <span className="text-lg font-semibold tracking-tight">OmniConvert</span>
+            <div className="hidden gap-6 text-sm font-medium text-ink-muted md:flex">
+              <a href="#tools" className="transition-colors hover:text-ink">
+                Tools
+              </a>
+              <a href="#api" className="transition-colors hover:text-ink">
+                API
+              </a>
+              <a href="#pricing" className="transition-colors hover:text-ink">
+                Pricing
+              </a>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button className="px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink">
+              Sign In
+            </button>
+            <button className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm ring-1 ring-primary transition-colors hover:opacity-90">
+              Get Started
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Hero / Universal Converter */}
+      <section className="border-b border-ink/5 bg-card py-16 md:py-24">
+        <div className="mx-auto flex max-w-3xl flex-col items-center px-6 text-center">
+          <h1 className="mb-6 text-balance text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
+            Convert any file format instantly
+          </h1>
+          <p className="mb-12 max-w-[48ch] text-pretty text-lg text-ink-muted">
+            Fast, secure, and precise processing for documents, images, and media directly in your
+            browser.
+          </p>
+
+          {/* Converter Widget */}
+          <div className="w-full rounded-2xl bg-muted p-2 shadow-sm ring-1 ring-ink/5">
+            <div className="mb-2 flex w-fit gap-1 rounded-lg bg-ink/10 p-1">
+              {(["file", "url", "text"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setTab(t)}
+                  className={
+                    tab === t
+                      ? "rounded-md bg-card px-4 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-ink/5"
+                      : "rounded-md px-4 py-1.5 text-xs font-medium text-ink-muted hover:text-ink"
+                  }
+                >
+                  {t === "file" ? "File" : t === "url" ? "URL" : "Text"}
+                </button>
+              ))}
+            </div>
+
+            <div className="group relative">
+              {tab === "file" && (
+                <div className="flex flex-col items-center gap-4 rounded-xl border-2 border-dashed border-ink/10 bg-card p-12 transition-colors group-hover:border-brand/40">
+                  <div className="flex size-12 items-center justify-center rounded-full bg-muted ring-1 ring-ink/5">
+                    <Plus className="size-5 text-ink-subtle" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-ink">Drop files here or click to browse</p>
+                    <p className="mt-1 text-xs text-ink-subtle">Maximum file size: 2GB</p>
+                  </div>
+                </div>
+              )}
+              {tab === "url" && (
+                <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-ink/10 bg-card p-12">
+                  <Link2 className="size-6 text-ink-subtle" />
+                  <input
+                    type="url"
+                    placeholder="Paste a URL (YouTube, TikTok, article, image...)"
+                    className="w-full max-w-md rounded-md bg-muted px-3 py-2 text-sm outline-none ring-1 ring-ink/5 focus:ring-brand/40"
+                  />
+                </div>
+              )}
+              {tab === "text" && (
+                <div className="rounded-xl border-2 border-dashed border-ink/10 bg-card p-6">
+                  <textarea
+                    rows={5}
+                    placeholder="Paste text, markdown, JSON, XML, YAML..."
+                    className="w-full resize-none rounded-md bg-muted p-3 text-sm outline-none ring-1 ring-ink/5 focus:ring-brand/40"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-ink/[0.04] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
+                  Detected
+                </span>
+                <span className="rounded bg-ink/10 px-2 py-0.5 font-mono text-sm text-ink-muted">
+                  Waiting for file...
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-ink-muted">to</span>
+                <button className="flex items-center gap-2 rounded bg-card px-3 py-1.5 text-sm font-medium ring-1 ring-ink/5 hover:bg-muted">
+                  Select Format
+                  <ChevronDown className="size-3.5 text-ink-subtle" />
+                </button>
+                <button className="flex items-center gap-1.5 rounded bg-brand px-3 py-1.5 text-sm font-medium text-brand-foreground opacity-60">
+                  <Upload className="size-3.5" />
+                  Convert
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Popular Chips */}
+          <div className="mt-8 flex flex-wrap justify-center gap-2">
+            <span className="py-1.5 text-xs font-medium text-ink-subtle">Popular:</span>
+            {POPULAR.map((chip) => (
+              <button
+                key={chip}
+                className="rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-ink/10 hover:text-ink"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust bar */}
+      <section className="border-b border-ink/5 bg-surface py-6">
+        <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 px-6 text-sm md:grid-cols-3">
+          <div className="flex items-center gap-3">
+            <Zap className="size-4 text-brand" />
+            <span className="text-ink-muted">
+              <span className="font-medium text-ink">Instant</span> processing on dedicated hardware
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Shield className="size-4 text-brand" />
+            <span className="text-ink-muted">
+              <span className="font-medium text-ink">Encrypted</span> transfer, files auto-deleted
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Cpu className="size-4 text-brand" />
+            <span className="text-ink-muted">
+              <span className="font-medium text-ink">200+</span> format pairs, one workbench
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* Categories */}
+      <section id="tools" className="py-20">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mb-12 flex flex-col justify-between gap-8 md:flex-row md:items-end">
+            <div className="max-w-[56ch]">
+              <h2 className="mb-2 text-2xl font-semibold text-ink">Conversion Families</h2>
+              <p className="text-pretty text-ink-muted">
+                Browse 200+ format pairs across specialized processing engines. Upload once, pick
+                any valid target.
+              </p>
+            </div>
+            <div className="relative w-full md:w-80">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search any conversion..."
+                className="w-full rounded-lg bg-card py-2 pl-9 pr-4 text-sm ring-1 ring-ink/5 transition-shadow focus:outline-none focus:ring-ink/20"
+              />
+              <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-ink-subtle" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {filtered.map((f) => {
+              const Icon = ICONS[f.code] ?? FileText;
+              if (f.highlight) {
+                return (
+                  <div
+                    key={f.code}
+                    className="group flex flex-col justify-between rounded-xl bg-ink p-5 ring-1 ring-white/10 lg:col-span-2"
+                  >
+                    <div>
+                      <div className="mb-4 flex items-center gap-2">
+                        <div className="flex size-8 items-center justify-center rounded bg-brand ring-1 ring-white/10">
+                          <Icon className="size-4 text-brand-foreground" />
+                        </div>
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-brand">
+                          Professional Grade
+                        </span>
+                      </div>
+                      <h3 className="mb-2 text-lg font-semibold text-primary-foreground">
+                        {f.name}
+                      </h3>
+                      <p className="max-w-[40ch] text-sm text-ink-subtle">{f.description}</p>
+                    </div>
+                    <div className="mt-6 flex gap-2">
+                      <span className="rounded bg-white/5 px-2 py-1 font-mono text-[10px] text-ink-subtle">
+                        {f.count} TOOLS
+                      </span>
+                      <span className="rounded bg-white/5 px-2 py-1 font-mono text-[10px] text-ink-subtle">
+                        OCR READY
+                      </span>
+                    </div>
+                  </div>
+                );
+              }
+              return (
+                <div
+                  key={f.code}
+                  className="group rounded-xl bg-card p-5 ring-1 ring-ink/5 transition-shadow hover:ring-ink/20"
+                >
+                  <div className="mb-4 flex size-8 items-center justify-center rounded bg-muted ring-1 ring-ink/5">
+                    <Icon className="size-4 text-ink" />
+                  </div>
+                  <h3 className="mb-1 text-sm font-semibold text-ink">{f.name}</h3>
+                  <p className="text-xs text-ink-subtle">{f.formats}</p>
+                  <p className="mt-3 font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
+                    {f.count} tools
+                  </p>
+                </div>
+              );
+            })}
+            {filtered.length === 0 && (
+              <div className="col-span-full rounded-xl bg-card p-8 text-center text-sm text-ink-muted ring-1 ring-ink/5">
+                No conversions match "{query}".
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="border-t border-ink/5 bg-muted/40 py-24">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mb-16 text-center">
+            <h2 className="mb-4 text-3xl font-semibold tracking-tight text-ink">
+              Simple pricing for everyone
+            </h2>
+            <p className="mx-auto max-w-[48ch] text-pretty text-ink-muted">
+              Start for free, scale when you need high-volume batch processing and API access.
+            </p>
+          </div>
+
+          <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-3">
+            {/* Free */}
+            <div className="flex flex-col rounded-2xl bg-card p-8 ring-1 ring-ink/5">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-subtle">
+                Free
+              </h3>
+              <div className="mb-6 flex items-baseline gap-1">
+                <span className="text-4xl font-semibold text-ink">$0</span>
+                <span className="text-ink-muted">/mo</span>
+              </div>
+              <ul className="mb-8 flex-grow space-y-4 text-sm text-ink-muted">
+                <li>Up to 50MB files</li>
+                <li>10 conversions per day</li>
+                <li>Standard priority</li>
+                <li>Ads supported</li>
+              </ul>
+              <button className="w-full rounded-lg bg-muted py-2.5 text-sm font-medium text-ink ring-1 ring-ink/10 transition-colors hover:bg-ink/10">
+                Current Plan
+              </button>
+            </div>
+
+            {/* Pro */}
+            <div className="relative flex flex-col rounded-2xl bg-card p-8 ring-2 ring-primary">
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">
+                Popular
+              </div>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink">Pro</h3>
+              <div className="mb-6 flex items-baseline gap-1">
+                <span className="text-4xl font-semibold text-ink">$5</span>
+                <span className="text-ink-muted">/mo</span>
+              </div>
+              <ul className="mb-8 flex-grow space-y-4 text-sm text-ink-muted">
+                <li className="font-medium text-ink">Unlimited conversions</li>
+                <li>Up to 2GB files</li>
+                <li>Batch processing</li>
+                <li>API access</li>
+                <li>Ad-free experience</li>
+              </ul>
+              <button className="w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-ink/10 transition-colors hover:opacity-90">
+                Upgrade Now
+              </button>
+            </div>
+
+            {/* Enterprise */}
+            <div className="flex flex-col rounded-2xl bg-card p-8 ring-1 ring-ink/5">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-subtle">
+                Enterprise
+              </h3>
+              <div className="mb-6 flex items-baseline gap-1">
+                <span className="text-4xl font-semibold text-ink">$50</span>
+                <span className="text-ink-muted">/mo</span>
+              </div>
+              <ul className="mb-8 flex-grow space-y-4 text-sm text-ink-muted">
+                <li>White-label API</li>
+                <li>Bulk processing</li>
+                <li>SLA support</li>
+                <li>Custom integrations</li>
+              </ul>
+              <button className="w-full rounded-lg bg-muted py-2.5 text-sm font-medium text-ink ring-1 ring-ink/10 transition-colors hover:bg-ink/10">
+                Contact Sales
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-ink/5 py-20">
+        <div className="mx-auto max-w-7xl px-6">
+          <div className="mb-20 grid grid-cols-2 gap-12 md:grid-cols-3 lg:grid-cols-5">
+            <div className="col-span-2">
+              <span className="text-lg font-semibold tracking-tight">OmniConvert</span>
+              <p className="mt-4 max-w-[35ch] text-sm text-ink-muted">
+                The universal toolkit for file processing. All tools run on dedicated high-speed
+                servers with encrypted transfers.
+              </p>
+            </div>
+            <FooterCol
+              title="Image Tools"
+              links={["PNG to JPG", "SVG to PNG", "HEIC to PNG", "WEBP to PNG"]}
+            />
+            <FooterCol
+              title="Document Tools"
+              links={["PDF to Word", "Excel to CSV", "Word to PDF", "PDF Compress"]}
+            />
+            <FooterCol
+              title="Company"
+              links={["Privacy Policy", "Terms of Service", "API Docs", "Support"]}
+            />
+          </div>
+          <div className="flex flex-col items-start justify-between gap-4 border-t border-ink/5 pt-8 md:flex-row md:items-center">
+            <p className="font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
+              © 2026 OmniConvert Utility Engine
+            </p>
+            <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
+              <span className="size-1.5 animate-pulse rounded-full bg-brand" />
+              Server Status: Optimal
+            </span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function FooterCol({ title, links }: { title: string; links: string[] }) {
+  return (
+    <div>
+      <h4 className="mb-6 text-sm font-semibold text-ink">{title}</h4>
+      <ul className="space-y-3">
+        {links.map((l) => (
+          <li key={l}>
+            <a href="#" className="text-sm text-ink-muted hover:text-ink">
+              {l}
+            </a>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
