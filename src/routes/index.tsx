@@ -350,83 +350,43 @@ function Index() {
         </div>
       </section>
 
-      {/* Pricing */}
+      {/* Free forever */}
       <section id="pricing" className="border-t border-ink/5 bg-muted/40 py-24">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mb-16 text-center">
-            <h2 className="mb-4 text-3xl font-semibold tracking-tight text-ink">
-              Simple pricing for everyone
-            </h2>
-            <p className="mx-auto max-w-[48ch] text-pretty text-ink-muted">
-              Start for free, scale when you need high-volume batch processing and API access.
-            </p>
+        <div className="mx-auto max-w-3xl px-6 text-center">
+          <span className="inline-flex items-center gap-2 rounded-full bg-brand/10 px-3 py-1 font-mono text-[10px] font-semibold uppercase tracking-widest text-brand ring-1 ring-brand/20">
+            <span className="size-1.5 rounded-full bg-brand" />
+            100% Free · No Signup
+          </span>
+          <h2 className="mt-6 text-balance text-3xl font-semibold tracking-tight text-ink md:text-4xl">
+            Every tool. Every format. Free forever.
+          </h2>
+          <p className="mx-auto mt-4 max-w-[52ch] text-pretty text-ink-muted">
+            No subscriptions, no paywalls, no "Pro" tier hiding features behind a credit card.
+            Upload, convert, download — as many times as you want.
+          </p>
+
+          <div className="mx-auto mt-12 grid max-w-2xl grid-cols-2 gap-px overflow-hidden rounded-2xl bg-ink/5 ring-1 ring-ink/5 md:grid-cols-4">
+            {[
+              { k: "$0", v: "Forever" },
+              { k: "∞", v: "Conversions" },
+              { k: "2 GB", v: "Max file size" },
+              { k: "0", v: "Accounts needed" },
+            ].map((s) => (
+              <div key={s.v} className="bg-card p-5">
+                <div className="text-2xl font-semibold text-ink">{s.k}</div>
+                <div className="mt-1 font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
+                  {s.v}
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="mx-auto grid max-w-5xl gap-8 md:grid-cols-3">
-            {/* Free */}
-            <div className="flex flex-col rounded-2xl bg-card p-8 ring-1 ring-ink/5">
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-subtle">
-                Free
-              </h3>
-              <div className="mb-6 flex items-baseline gap-1">
-                <span className="text-4xl font-semibold text-ink">$0</span>
-                <span className="text-ink-muted">/mo</span>
-              </div>
-              <ul className="mb-8 flex-grow space-y-4 text-sm text-ink-muted">
-                <li>Up to 50MB files</li>
-                <li>10 conversions per day</li>
-                <li>Standard priority</li>
-                <li>Ads supported</li>
-              </ul>
-              <button className="w-full rounded-lg bg-muted py-2.5 text-sm font-medium text-ink ring-1 ring-ink/10 transition-colors hover:bg-ink/10">
-                Current Plan
-              </button>
-            </div>
-
-            {/* Pro */}
-            <div className="relative flex flex-col rounded-2xl bg-card p-8 ring-2 ring-primary">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">
-                Popular
-              </div>
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink">Pro</h3>
-              <div className="mb-6 flex items-baseline gap-1">
-                <span className="text-4xl font-semibold text-ink">$5</span>
-                <span className="text-ink-muted">/mo</span>
-              </div>
-              <ul className="mb-8 flex-grow space-y-4 text-sm text-ink-muted">
-                <li className="font-medium text-ink">Unlimited conversions</li>
-                <li>Up to 2GB files</li>
-                <li>Batch processing</li>
-                <li>API access</li>
-                <li>Ad-free experience</li>
-              </ul>
-              <button className="w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground shadow-lg shadow-ink/10 transition-colors hover:opacity-90">
-                Upgrade Now
-              </button>
-            </div>
-
-            {/* Enterprise */}
-            <div className="flex flex-col rounded-2xl bg-card p-8 ring-1 ring-ink/5">
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wider text-ink-subtle">
-                Enterprise
-              </h3>
-              <div className="mb-6 flex items-baseline gap-1">
-                <span className="text-4xl font-semibold text-ink">$50</span>
-                <span className="text-ink-muted">/mo</span>
-              </div>
-              <ul className="mb-8 flex-grow space-y-4 text-sm text-ink-muted">
-                <li>White-label API</li>
-                <li>Bulk processing</li>
-                <li>SLA support</li>
-                <li>Custom integrations</li>
-              </ul>
-              <button className="w-full rounded-lg bg-muted py-2.5 text-sm font-medium text-ink ring-1 ring-ink/10 transition-colors hover:bg-ink/10">
-                Contact Sales
-              </button>
-            </div>
-          </div>
+          <p className="mt-8 text-xs text-ink-subtle">
+            Files are encrypted in transit and auto-deleted after processing.
+          </p>
         </div>
       </section>
+
 
       {/* Footer */}
       <footer className="border-t border-ink/5 py-20">
