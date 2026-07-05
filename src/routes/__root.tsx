@@ -77,13 +77,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "OmniConvert — Convert any file format instantly" },
+      { title: "FileFlow — Convert any file format instantly" },
       {
         name: "description",
         content:
           "Fast, secure file conversion for documents, images, video, audio, PDFs, archives, code, and 3D. 200+ format pairs in one universal workbench.",
       },
-      { property: "og:title", content: "OmniConvert — Convert any file format instantly" },
+      { property: "og:title", content: "FileFlow — Convert any file format instantly" },
       {
         property: "og:description",
         content:

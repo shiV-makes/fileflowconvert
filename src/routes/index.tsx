@@ -120,7 +120,7 @@ function Index() {
       <nav className="sticky top-0 z-50 border-b border-ink/5 bg-surface/80 backdrop-blur-md">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
           <div className="flex items-center gap-8">
-            <span className="text-lg font-semibold tracking-tight">OmniConvert</span>
+            <span className="text-lg font-semibold tracking-tight">FileFlow</span>
             <div className="hidden gap-6 text-sm font-medium text-ink-muted md:flex">
               <a href="#tools" className="transition-colors hover:text-ink">
                 Tools
@@ -129,17 +129,9 @@ function Index() {
                 API
               </a>
               <a href="#pricing" className="transition-colors hover:text-ink">
-                Pricing
+                Free
               </a>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button className="px-3 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink">
-              Sign In
-            </button>
-            <button className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm ring-1 ring-primary transition-colors hover:opacity-90">
-              Get Started
-            </button>
           </div>
         </div>
       </nav>
@@ -298,27 +290,27 @@ function Index() {
                 return (
                   <div
                     key={f.code}
-                    className="group flex flex-col justify-between rounded-xl bg-ink p-5 ring-1 ring-white/10 lg:col-span-2"
+                    className="group flex flex-col justify-between rounded-xl bg-card p-5 ring-1 ring-brand/30 lg:col-span-2"
                   >
                     <div>
                       <div className="mb-4 flex items-center gap-2">
-                        <div className="flex size-8 items-center justify-center rounded bg-brand ring-1 ring-white/10">
+                        <div className="flex size-8 items-center justify-center rounded bg-brand ring-1 ring-ink/5">
                           <Icon className="size-4 text-brand-foreground" />
                         </div>
                         <span className="text-[10px] font-semibold uppercase tracking-widest text-brand">
                           Professional Grade
                         </span>
                       </div>
-                      <h3 className="mb-2 text-lg font-semibold text-primary-foreground">
+                      <h3 className="mb-2 text-lg font-semibold text-ink">
                         {f.name}
                       </h3>
-                      <p className="max-w-[40ch] text-sm text-ink-subtle">{f.description}</p>
+                      <p className="max-w-[40ch] text-sm text-ink-muted">{f.description}</p>
                     </div>
                     <div className="mt-6 flex gap-2">
-                      <span className="rounded bg-white/5 px-2 py-1 font-mono text-[10px] text-ink-subtle">
+                      <span className="rounded bg-muted px-2 py-1 font-mono text-[10px] text-ink-subtle ring-1 ring-ink/5">
                         {f.count} TOOLS
                       </span>
-                      <span className="rounded bg-white/5 px-2 py-1 font-mono text-[10px] text-ink-subtle">
+                      <span className="rounded bg-muted px-2 py-1 font-mono text-[10px] text-ink-subtle ring-1 ring-ink/5">
                         OCR READY
                       </span>
                     </div>
@@ -389,57 +381,21 @@ function Index() {
 
 
       {/* Footer */}
-      <footer className="border-t border-ink/5 py-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mb-20 grid grid-cols-2 gap-12 md:grid-cols-3 lg:grid-cols-5">
-            <div className="col-span-2">
-              <span className="text-lg font-semibold tracking-tight">OmniConvert</span>
-              <p className="mt-4 max-w-[35ch] text-sm text-ink-muted">
-                The universal toolkit for file processing. All tools run on dedicated high-speed
-                servers with encrypted transfers.
-              </p>
-            </div>
-            <FooterCol
-              title="Image Tools"
-              links={["PNG to JPG", "SVG to PNG", "HEIC to PNG", "WEBP to PNG"]}
-            />
-            <FooterCol
-              title="Document Tools"
-              links={["PDF to Word", "Excel to CSV", "Word to PDF", "PDF Compress"]}
-            />
-            <FooterCol
-              title="Company"
-              links={["Privacy Policy", "Terms of Service", "API Docs", "Support"]}
-            />
-          </div>
-          <div className="flex flex-col items-start justify-between gap-4 border-t border-ink/5 pt-8 md:flex-row md:items-center">
+      <footer className="border-t border-ink/5 py-12">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-6 md:flex-row md:items-center">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold tracking-tight text-ink">FileFlow</span>
             <p className="font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
-              © 2026 OmniConvert Utility Engine
+              © 2026 FileFlow Utility Engine
             </p>
-            <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
-              <span className="size-1.5 animate-pulse rounded-full bg-brand" />
-              Server Status: Optimal
-            </span>
           </div>
+          <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
+            <span className="size-1.5 animate-pulse rounded-full bg-brand" />
+            Server Status: Optimal
+          </span>
         </div>
       </footer>
     </div>
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: string[] }) {
-  return (
-    <div>
-      <h4 className="mb-6 text-sm font-semibold text-ink">{title}</h4>
-      <ul className="space-y-3">
-        {links.map((l) => (
-          <li key={l}>
-            <a href="#" className="text-sm text-ink-muted hover:text-ink">
-              {l}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
