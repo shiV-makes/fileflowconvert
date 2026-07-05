@@ -91,6 +91,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "FileFlow — Convert any file format instantly" },
+      { name: "description", content: "Fast, secure file conversion for documents, images, video, audio, PDFs, archives, code, and 3D. 200+ format pairs in one universal workbench." },
+      { property: "og:description", content: "Fast, secure file conversion for documents, images, video, audio, PDFs, archives, code, and 3D. 200+ format pairs in one universal workbench." },
+      { name: "twitter:description", content: "Fast, secure file conversion for documents, images, video, audio, PDFs, archives, code, and 3D. 200+ format pairs in one universal workbench." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0cb0c727-7371-47b5-8719-336bc1dc75e2/id-preview-5ca5bb30--09e8b648-4785-4167-9f0c-aa0ff09d05af.lovable.app-1783240948686.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0cb0c727-7371-47b5-8719-336bc1dc75e2/id-preview-5ca5bb30--09e8b648-4785-4167-9f0c-aa0ff09d05af.lovable.app-1783240948686.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
