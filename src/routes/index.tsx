@@ -381,57 +381,21 @@ function Index() {
 
 
       {/* Footer */}
-      <footer className="border-t border-ink/5 py-20">
-        <div className="mx-auto max-w-7xl px-6">
-          <div className="mb-20 grid grid-cols-2 gap-12 md:grid-cols-3 lg:grid-cols-5">
-            <div className="col-span-2">
-              <span className="text-lg font-semibold tracking-tight">OmniConvert</span>
-              <p className="mt-4 max-w-[35ch] text-sm text-ink-muted">
-                The universal toolkit for file processing. All tools run on dedicated high-speed
-                servers with encrypted transfers.
-              </p>
-            </div>
-            <FooterCol
-              title="Image Tools"
-              links={["PNG to JPG", "SVG to PNG", "HEIC to PNG", "WEBP to PNG"]}
-            />
-            <FooterCol
-              title="Document Tools"
-              links={["PDF to Word", "Excel to CSV", "Word to PDF", "PDF Compress"]}
-            />
-            <FooterCol
-              title="Company"
-              links={["Privacy Policy", "Terms of Service", "API Docs", "Support"]}
-            />
-          </div>
-          <div className="flex flex-col items-start justify-between gap-4 border-t border-ink/5 pt-8 md:flex-row md:items-center">
+      <footer className="border-t border-ink/5 py-12">
+        <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 px-6 md:flex-row md:items-center">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold tracking-tight text-ink">FileFlow</span>
             <p className="font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
-              © 2026 OmniConvert Utility Engine
+              © 2026 FileFlow Utility Engine
             </p>
-            <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
-              <span className="size-1.5 animate-pulse rounded-full bg-brand" />
-              Server Status: Optimal
-            </span>
           </div>
+          <span className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-widest text-ink-subtle">
+            <span className="size-1.5 animate-pulse rounded-full bg-brand" />
+            Server Status: Optimal
+          </span>
         </div>
       </footer>
     </div>
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: string[] }) {
-  return (
-    <div>
-      <h4 className="mb-6 text-sm font-semibold text-ink">{title}</h4>
-      <ul className="space-y-3">
-        {links.map((l) => (
-          <li key={l}>
-            <a href="#" className="text-sm text-ink-muted hover:text-ink">
-              {l}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
