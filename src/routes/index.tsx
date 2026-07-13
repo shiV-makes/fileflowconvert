@@ -121,7 +121,7 @@ function Index() {
     setFile(f);
     if (f) {
       const t = targetsFor(detectKind(f).kind);
-      setTarget(t[0] ?? "");
+      setTarget(t[0]?.ext ?? "");
     } else {
       setTarget("");
     }
@@ -138,24 +138,9 @@ function Index() {
     setError(null);
     setResult(null);
     try {
-      let blob: Blob;
-      let outName: string;
-      if (detected.kind === "image" && (IMAGE_TARGETS as readonly string[]).includes(target)) {
-        blob = await convertImage(file, target);
-        outName = `${baseName(file.name)}.${extFor(target)}`;
-      } else if (
-        (detected.kind === "text" || detected.kind === "json" || detected.kind === "csv") &&
-        target !== "Original (rename)"
-      ) {
-        blob = await convertText(file, detected.kind, target);
-        outName = `${baseName(file.name)}.${extFor(target)}`;
-      } else {
-        // passthrough (media rename or unknown)
-        blob = file;
-        outName = `${baseName(file.name)}.${extFor(target === "Original (rename)" ? file.name.split(".").pop() ?? "bin" : target)}`;
-      }
+      const { blob, filename } = await runConvert(file, detected.kind, target);
       const url = URL.createObjectURL(blob);
-      setResult({ url, name: outName, size: blob.size });
+      setResult({ url, name: filename, size: blob.size });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conversion failed");
     } finally {
