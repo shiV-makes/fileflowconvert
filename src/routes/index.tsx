@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   FileText,
@@ -18,13 +18,15 @@ import {
   QrCode,
   Link2,
   Youtube,
-  FileStack,
   Search,
   Plus,
-  Upload,
+  Download,
   Zap,
   Shield,
   Cpu,
+  X,
+  Loader2,
+  CheckCircle2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -36,21 +38,11 @@ type Family = {
   name: string;
   formats: string;
   count: number;
-  highlight?: boolean;
-  description?: string;
 };
 
 const FAMILIES: Family[] = [
   { code: "DOC", name: "Documents", formats: "PDF, DOCX, TXT, ODT, RTF, EPUB", count: 24 },
   { code: "IMG", name: "Images", formats: "PNG, JPG, WEBP, AVIF, HEIC, SVG", count: 42 },
-  {
-    code: "PDF",
-    name: "PDF Mega Suite",
-    formats: "Merge, split, compress, sign",
-    count: 12,
-    highlight: true,
-    description: "Merge, split, compress, and sign. Full OCR support for 40+ languages.",
-  },
   { code: "VID", name: "Video", formats: "MP4, MOV, MKV, WEBM, AVI", count: 28 },
   { code: "AUD", name: "Audio", formats: "MP3, WAV, FLAC, M4A, OGG", count: 18 },
   { code: "ARC", name: "Archives", formats: "ZIP, 7Z, RAR, TAR, GZ", count: 10 },
@@ -71,7 +63,6 @@ const FAMILIES: Family[] = [
 const ICONS: Record<string, typeof FileText> = {
   DOC: FileText,
   IMG: ImageIcon,
-  PDF: FileStack,
   VID: Video,
   AUD: Music,
   ARC: Archive,
@@ -89,19 +80,191 @@ const ICONS: Record<string, typeof FileText> = {
   TXT: TypeIcon,
 };
 
-const POPULAR = [
-  "PDF → Word",
-  "PNG → JPG",
-  "MP4 → GIF",
-  "HEIC → PNG",
-  "YouTube → MP3",
-  "WEBP → PNG",
-  "CSV → Excel",
-];
+// --- Conversion engine (client-side, real conversions) ---
+
+type Kind = "image" | "text" | "json" | "csv" | "audio" | "video" | "unknown";
+
+const IMAGE_TARGETS = ["PNG", "JPG", "WEBP"] as const;
+const TEXT_TARGETS = ["TXT", "MD", "HTML"] as const;
+const JSON_TARGETS = ["JSON", "CSV", "TXT"] as const;
+const CSV_TARGETS = ["CSV", "JSON", "TSV", "TXT"] as const;
+const MEDIA_PASSTHROUGH = ["Original (rename)"] as const;
+
+function detectKind(file: File): { kind: Kind; label: string } {
+  const name = file.name.toLowerCase();
+  const ext = name.split(".").pop() ?? "";
+  if (file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext))
+    return { kind: "image", label: ext.toUpperCase() || "IMAGE" };
+  if (ext === "json") return { kind: "json", label: "JSON" };
+  if (ext === "csv") return { kind: "csv", label: "CSV" };
+  if (ext === "tsv") return { kind: "csv", label: "TSV" };
+  if (["txt", "md", "html", "xml", "yaml", "yml", "log"].includes(ext))
+    return { kind: "text", label: ext.toUpperCase() };
+  if (file.type.startsWith("audio/")) return { kind: "audio", label: ext.toUpperCase() };
+  if (file.type.startsWith("video/")) return { kind: "video", label: ext.toUpperCase() };
+  return { kind: "unknown", label: ext.toUpperCase() || "FILE" };
+}
+
+function targetsFor(kind: Kind): readonly string[] {
+  switch (kind) {
+    case "image":
+      return IMAGE_TARGETS;
+    case "text":
+      return TEXT_TARGETS;
+    case "json":
+      return JSON_TARGETS;
+    case "csv":
+      return CSV_TARGETS;
+    case "audio":
+    case "video":
+      return MEDIA_PASSTHROUGH;
+    default:
+      return [];
+  }
+}
+
+async function convertImage(file: File, target: string): Promise<Blob> {
+  const bitmap = await createImageBitmap(file);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas not supported");
+  if (target === "JPG") {
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  ctx.drawImage(bitmap, 0, 0);
+  const mime =
+    target === "PNG" ? "image/png" : target === "JPG" ? "image/jpeg" : "image/webp";
+  const quality = target === "PNG" ? undefined : 0.92;
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("Encoding failed"))),
+      mime,
+      quality,
+    );
+  });
+}
+
+function jsonToCsv(rows: unknown): string {
+  if (!Array.isArray(rows) || rows.length === 0) return "";
+  const headers = Array.from(
+    rows.reduce<Set<string>>((set, r) => {
+      if (r && typeof r === "object") Object.keys(r).forEach((k) => set.add(k));
+      return set;
+    }, new Set()),
+  );
+  const esc = (v: unknown) => {
+    const s = v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const body = rows.map((r) =>
+    headers.map((h) => esc((r as Record<string, unknown>)?.[h])).join(","),
+  );
+  return [headers.join(","), ...body].join("\n");
+}
+
+function parseCsv(text: string, delim = ","): string[][] {
+  const rows: string[][] = [];
+  let cur = "";
+  let row: string[] = [];
+  let inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') {
+        cur += '"';
+        i++;
+      } else if (c === '"') {
+        inQ = false;
+      } else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === delim) {
+        row.push(cur);
+        cur = "";
+      } else if (c === "\n") {
+        row.push(cur);
+        rows.push(row);
+        row = [];
+        cur = "";
+      } else if (c === "\r") {
+        // skip
+      } else cur += c;
+    }
+  }
+  if (cur.length || row.length) {
+    row.push(cur);
+    rows.push(row);
+  }
+  return rows;
+}
+
+async function convertText(file: File, sourceKind: Kind, target: string): Promise<Blob> {
+  const text = await file.text();
+  if (sourceKind === "json") {
+    const data = JSON.parse(text);
+    if (target === "CSV") return new Blob([jsonToCsv(data)], { type: "text/csv" });
+    if (target === "TXT")
+      return new Blob([typeof data === "string" ? data : JSON.stringify(data, null, 2)], {
+        type: "text/plain",
+      });
+    return new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  }
+  if (sourceKind === "csv") {
+    const delim = file.name.toLowerCase().endsWith(".tsv") ? "\t" : ",";
+    const rows = parseCsv(text, delim);
+    if (target === "JSON") {
+      const [headers, ...body] = rows;
+      const objs = body
+        .filter((r) => r.some((c) => c !== ""))
+        .map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? ""])));
+      return new Blob([JSON.stringify(objs, null, 2)], { type: "application/json" });
+    }
+    if (target === "TSV")
+      return new Blob([rows.map((r) => r.join("\t")).join("\n")], { type: "text/tab-separated-values" });
+    if (target === "CSV")
+      return new Blob([rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n")], { type: "text/csv" });
+    return new Blob([text], { type: "text/plain" });
+  }
+  // generic text
+  if (target === "HTML") {
+    const escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    return new Blob(
+      [`<!doctype html><meta charset="utf-8"><pre>${escaped}</pre>`],
+      { type: "text/html" },
+    );
+  }
+  return new Blob([text], { type: target === "MD" ? "text/markdown" : "text/plain" });
+}
+
+function extFor(target: string): string {
+  return target.toLowerCase();
+}
+
+function baseName(name: string) {
+  const i = name.lastIndexOf(".");
+  return i > 0 ? name.slice(0, i) : name;
+}
+
+const POPULAR = ["PNG → JPG", "JPG → WEBP", "WEBP → PNG", "JSON → CSV", "CSV → JSON", "TXT → HTML"];
 
 function Index() {
-  const [tab, setTab] = useState<"file" | "url" | "text">("file");
   const [query, setQuery] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [target, setTarget] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<{ url: string; name: string; size: number } | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const detected = useMemo(() => (file ? detectKind(file) : null), [file]);
+  const targets = useMemo(() => (detected ? targetsFor(detected.kind) : []), [detected]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -114,6 +277,57 @@ function Index() {
     );
   }, [query]);
 
+  const pickFile = (f: File | null) => {
+    if (result) URL.revokeObjectURL(result.url);
+    setResult(null);
+    setError(null);
+    setFile(f);
+    if (f) {
+      const t = targetsFor(detectKind(f).kind);
+      setTarget(t[0] ?? "");
+    } else {
+      setTarget("");
+    }
+  };
+
+  const handleFiles = useCallback((list: FileList | null) => {
+    if (!list || !list[0]) return;
+    pickFile(list[0]);
+  }, []);
+
+  const convert = async () => {
+    if (!file || !detected || !target) return;
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      let blob: Blob;
+      let outName: string;
+      if (detected.kind === "image" && (IMAGE_TARGETS as readonly string[]).includes(target)) {
+        blob = await convertImage(file, target);
+        outName = `${baseName(file.name)}.${extFor(target)}`;
+      } else if (
+        (detected.kind === "text" || detected.kind === "json" || detected.kind === "csv") &&
+        target !== "Original (rename)"
+      ) {
+        blob = await convertText(file, detected.kind, target);
+        outName = `${baseName(file.name)}.${extFor(target)}`;
+      } else {
+        // passthrough (media rename or unknown)
+        blob = file;
+        outName = `${baseName(file.name)}.${extFor(target === "Original (rename)" ? file.name.split(".").pop() ?? "bin" : target)}`;
+      }
+      const url = URL.createObjectURL(blob);
+      setResult({ url, name: outName, size: blob.size });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Conversion failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const canConvert = !!file && !!target && !busy;
+
   return (
     <div className="min-h-screen bg-surface text-ink">
       {/* Header */}
@@ -122,15 +336,8 @@ function Index() {
           <div className="flex items-center gap-8">
             <span className="text-lg font-semibold tracking-tight">FileFlow</span>
             <div className="hidden gap-6 text-sm font-medium text-ink-muted md:flex">
-              <a href="#tools" className="transition-colors hover:text-ink">
-                Tools
-              </a>
-              <a href="#api" className="transition-colors hover:text-ink">
-                API
-              </a>
-              <a href="#pricing" className="transition-colors hover:text-ink">
-                Free
-              </a>
+              <a href="#tools" className="transition-colors hover:text-ink">Tools</a>
+              <a href="#pricing" className="transition-colors hover:text-ink">Free</a>
             </div>
           </div>
         </div>
@@ -143,82 +350,138 @@ function Index() {
             Convert any file format instantly
           </h1>
           <p className="mb-12 max-w-[48ch] text-pretty text-lg text-ink-muted">
-            Fast, secure, and precise processing for documents, images, and media directly in your
-            browser.
+            Real conversions running right in your browser. No uploads, no accounts, no waiting.
           </p>
 
           {/* Converter Widget */}
           <div className="w-full rounded-2xl bg-muted p-2 shadow-sm ring-1 ring-ink/5">
-            <div className="mb-2 flex w-fit gap-1 rounded-lg bg-ink/10 p-1">
-              {(["file", "url", "text"] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={
-                    tab === t
-                      ? "rounded-md bg-card px-4 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-ink/5"
-                      : "rounded-md px-4 py-1.5 text-xs font-medium text-ink-muted hover:text-ink"
-                  }
-                >
-                  {t === "file" ? "File" : t === "url" ? "URL" : "Text"}
-                </button>
-              ))}
-            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+            />
 
-            <div className="group relative">
-              {tab === "file" && (
-                <div className="flex flex-col items-center gap-4 rounded-xl border-2 border-dashed border-ink/10 bg-card p-12 transition-colors group-hover:border-brand/40">
-                  <div className="flex size-12 items-center justify-center rounded-full bg-muted ring-1 ring-ink/5">
-                    <Plus className="size-5 text-ink-subtle" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-ink">Drop files here or click to browse</p>
-                    <p className="mt-1 text-xs text-ink-subtle">Maximum file size: 2GB</p>
-                  </div>
+            {!file && (
+              <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  handleFiles(e.dataTransfer.files);
+                }}
+                className={
+                  "flex w-full flex-col items-center gap-4 rounded-xl border-2 border-dashed bg-card p-12 transition-colors " +
+                  (dragOver ? "border-brand/60 bg-brand/5" : "border-ink/10 hover:border-brand/40")
+                }
+              >
+                <div className="flex size-12 items-center justify-center rounded-full bg-muted ring-1 ring-ink/5">
+                  <Plus className="size-5 text-ink-subtle" />
                 </div>
-              )}
-              {tab === "url" && (
-                <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-ink/10 bg-card p-12">
-                  <Link2 className="size-6 text-ink-subtle" />
-                  <input
-                    type="url"
-                    placeholder="Paste a URL (YouTube, TikTok, article, image...)"
-                    className="w-full max-w-md rounded-md bg-muted px-3 py-2 text-sm outline-none ring-1 ring-ink/5 focus:ring-brand/40"
-                  />
+                <div>
+                  <p className="font-medium text-ink">Drop a file here or click to browse</p>
+                  <p className="mt-1 text-xs text-ink-subtle">
+                    Images, JSON, CSV, TSV, TXT, MD, HTML — converted locally
+                  </p>
                 </div>
-              )}
-              {tab === "text" && (
-                <div className="rounded-xl border-2 border-dashed border-ink/10 bg-card p-6">
-                  <textarea
-                    rows={5}
-                    placeholder="Paste text, markdown, JSON, XML, YAML..."
-                    className="w-full resize-none rounded-md bg-muted p-3 text-sm outline-none ring-1 ring-ink/5 focus:ring-brand/40"
-                  />
-                </div>
-              )}
-            </div>
+              </button>
+            )}
 
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-3 rounded-xl bg-ink/[0.04] px-4 py-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-subtle">
-                  Detected
-                </span>
-                <span className="rounded bg-ink/10 px-2 py-0.5 font-mono text-sm text-ink-muted">
-                  Waiting for file...
-                </span>
+            {file && (
+              <div className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-ink/5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted ring-1 ring-ink/5">
+                      <FileText className="size-4 text-ink" />
+                    </div>
+                    <div className="min-w-0 text-left">
+                      <p className="truncate text-sm font-medium text-ink">{file.name}</p>
+                      <p className="text-xs text-ink-subtle">
+                        {(file.size / 1024).toFixed(1)} KB · Detected {detected?.label}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => pickFile(null)}
+                    className="rounded p-1.5 text-ink-subtle hover:bg-muted hover:text-ink"
+                    aria-label="Remove file"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+
+                {targets.length === 0 ? (
+                  <p className="rounded bg-muted px-3 py-2 text-left text-xs text-ink-muted ring-1 ring-ink/5">
+                    No client-side conversion available for this file type yet. Try an image, JSON,
+                    CSV, or text file.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2 rounded bg-muted p-2 ring-1 ring-ink/5">
+                    <span className="pl-2 text-xs text-ink-muted">Convert to</span>
+                    <div className="relative">
+                      <select
+                        value={target}
+                        onChange={(e) => setTarget(e.target.value)}
+                        className="appearance-none rounded bg-card py-1.5 pl-3 pr-8 text-sm font-medium text-ink ring-1 ring-ink/10 focus:outline-none focus:ring-ink/30"
+                      >
+                        {targets.map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-ink-subtle" />
+                    </div>
+                    <div className="ml-auto flex gap-2">
+                      <button
+                        onClick={convert}
+                        disabled={!canConvert}
+                        className="flex items-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                      >
+                        {busy ? (
+                          <Loader2 className="size-3.5 animate-spin" />
+                        ) : (
+                          <Zap className="size-3.5" />
+                        )}
+                        {busy ? "Converting..." : "Convert"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {error && (
+                  <p className="rounded bg-destructive/10 px-3 py-2 text-left text-xs text-destructive ring-1 ring-destructive/20">
+                    {error}
+                  </p>
+                )}
+
+                {result && (
+                  <div className="flex items-center justify-between gap-3 rounded-lg bg-brand/5 p-3 ring-1 ring-brand/20">
+                    <div className="flex min-w-0 items-center gap-2 text-left">
+                      <CheckCircle2 className="size-4 shrink-0 text-brand" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink">{result.name}</p>
+                        <p className="text-xs text-ink-subtle">
+                          {(result.size / 1024).toFixed(1)} KB · Ready
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={result.url}
+                      download={result.name}
+                      className="flex shrink-0 items-center gap-1.5 rounded bg-ink px-3 py-1.5 text-sm font-medium text-surface hover:opacity-90"
+                    >
+                      <Download className="size-3.5" />
+                      Download
+                    </a>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-ink-muted">to</span>
-                <button className="flex items-center gap-2 rounded bg-card px-3 py-1.5 text-sm font-medium ring-1 ring-ink/5 hover:bg-muted">
-                  Select Format
-                  <ChevronDown className="size-3.5 text-ink-subtle" />
-                </button>
-                <button className="flex items-center gap-1.5 rounded bg-brand px-3 py-1.5 text-sm font-medium text-brand-foreground opacity-60">
-                  <Upload className="size-3.5" />
-                  Convert
-                </button>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Popular Chips */}
@@ -227,6 +490,7 @@ function Index() {
             {POPULAR.map((chip) => (
               <button
                 key={chip}
+                onClick={() => inputRef.current?.click()}
                 className="rounded-full bg-muted px-3 py-1.5 text-xs font-medium text-ink-muted transition-colors hover:bg-ink/10 hover:text-ink"
               >
                 {chip}
@@ -242,19 +506,19 @@ function Index() {
           <div className="flex items-center gap-3">
             <Zap className="size-4 text-brand" />
             <span className="text-ink-muted">
-              <span className="font-medium text-ink">Instant</span> processing on dedicated hardware
+              <span className="font-medium text-ink">Instant</span> conversions in your browser
             </span>
           </div>
           <div className="flex items-center gap-3">
             <Shield className="size-4 text-brand" />
             <span className="text-ink-muted">
-              <span className="font-medium text-ink">Encrypted</span> transfer, files auto-deleted
+              <span className="font-medium text-ink">Private</span> — files never leave your device
             </span>
           </div>
           <div className="flex items-center gap-3">
             <Cpu className="size-4 text-brand" />
             <span className="text-ink-muted">
-              <span className="font-medium text-ink">200+</span> format pairs, one workbench
+              <span className="font-medium text-ink">No accounts</span>, no limits, no ads
             </span>
           </div>
         </div>
@@ -267,8 +531,8 @@ function Index() {
             <div className="max-w-[56ch]">
               <h2 className="mb-2 text-2xl font-semibold text-ink">Conversion Families</h2>
               <p className="text-pretty text-ink-muted">
-                Browse 200+ format pairs across specialized processing engines. Upload once, pick
-                any valid target.
+                Working today: Images (PNG/JPG/WEBP), JSON ↔ CSV/TSV, text formats. More families
+                coming online.
               </p>
             </div>
             <div className="relative w-full md:w-80">
@@ -286,37 +550,6 @@ function Index() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {filtered.map((f) => {
               const Icon = ICONS[f.code] ?? FileText;
-              if (f.highlight) {
-                return (
-                  <div
-                    key={f.code}
-                    className="group flex flex-col justify-between rounded-xl bg-card p-5 ring-1 ring-brand/30 lg:col-span-2"
-                  >
-                    <div>
-                      <div className="mb-4 flex items-center gap-2">
-                        <div className="flex size-8 items-center justify-center rounded bg-brand ring-1 ring-ink/5">
-                          <Icon className="size-4 text-brand-foreground" />
-                        </div>
-                        <span className="text-[10px] font-semibold uppercase tracking-widest text-brand">
-                          Professional Grade
-                        </span>
-                      </div>
-                      <h3 className="mb-2 text-lg font-semibold text-ink">
-                        {f.name}
-                      </h3>
-                      <p className="max-w-[40ch] text-sm text-ink-muted">{f.description}</p>
-                    </div>
-                    <div className="mt-6 flex gap-2">
-                      <span className="rounded bg-muted px-2 py-1 font-mono text-[10px] text-ink-subtle ring-1 ring-ink/5">
-                        {f.count} TOOLS
-                      </span>
-                      <span className="rounded bg-muted px-2 py-1 font-mono text-[10px] text-ink-subtle ring-1 ring-ink/5">
-                        OCR READY
-                      </span>
-                    </div>
-                  </div>
-                );
-              }
               return (
                 <div
                   key={f.code}
@@ -353,15 +586,15 @@ function Index() {
             Every tool. Every format. Free forever.
           </h2>
           <p className="mx-auto mt-4 max-w-[52ch] text-pretty text-ink-muted">
-            No subscriptions, no paywalls, no "Pro" tier hiding features behind a credit card.
-            Upload, convert, download — as many times as you want.
+            No subscriptions, no paywalls, no "Pro" tier. Upload, convert, download — as many times
+            as you want.
           </p>
 
           <div className="mx-auto mt-12 grid max-w-2xl grid-cols-2 gap-px overflow-hidden rounded-2xl bg-ink/5 ring-1 ring-ink/5 md:grid-cols-4">
             {[
               { k: "$0", v: "Forever" },
               { k: "∞", v: "Conversions" },
-              { k: "2 GB", v: "Max file size" },
+              { k: "100%", v: "In your browser" },
               { k: "0", v: "Accounts needed" },
             ].map((s) => (
               <div key={s.v} className="bg-card p-5">
@@ -374,11 +607,10 @@ function Index() {
           </div>
 
           <p className="mt-8 text-xs text-ink-subtle">
-            Files are encrypted in transit and auto-deleted after processing.
+            Files are processed locally and never uploaded to any server.
           </p>
         </div>
       </section>
-
 
       {/* Footer */}
       <footer className="border-t border-ink/5 py-12">
@@ -398,4 +630,3 @@ function Index() {
     </div>
   );
 }
-
