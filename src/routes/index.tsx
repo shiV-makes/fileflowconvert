@@ -252,8 +252,8 @@ function Index() {
                         onChange={(e) => setTarget(e.target.value)}
                         className="appearance-none rounded bg-card py-1.5 pl-3 pr-8 text-sm font-medium text-ink ring-1 ring-ink/10 focus:outline-none focus:ring-ink/30"
                       >
-                        {targets.map((t) => (
-                          <option key={t} value={t}>{t}</option>
+                        {targets.map((t: Target) => (
+                          <option key={t.ext} value={t.ext}>{t.label}</option>
                         ))}
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-ink-subtle" />
