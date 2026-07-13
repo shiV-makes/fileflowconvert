@@ -348,8 +348,8 @@ function Index() {
             <div className="max-w-[56ch]">
               <h2 className="mb-2 text-2xl font-semibold text-ink">Conversion Families</h2>
               <p className="text-pretty text-ink-muted">
-                Working today: Images (PNG/JPG/WEBP), JSON ↔ CSV/TSV, text formats. More families
-                coming online.
+                Images, PDF, DOCX, spreadsheets, structured data, and text — all converted in
+                your browser with no upload.
               </p>
             </div>
             <div className="relative w-full md:w-80">
