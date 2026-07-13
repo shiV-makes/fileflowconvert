@@ -82,11 +82,6 @@ const ICONS: Record<string, typeof FileText> = {
 
 import { convert as runConvert, detectKind, targetsFor, type Target } from "@/lib/converter";
 
-function baseName(name: string) {
-  const i = name.lastIndexOf(".");
-  return i > 0 ? name.slice(0, i) : name;
-}
-void baseName;
 
 const POPULAR = ["PNG → JPG", "JPG → PDF", "PDF → TXT", "DOCX → HTML", "XLSX → CSV", "JSON → YAML"];
 
