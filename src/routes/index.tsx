@@ -80,178 +80,10 @@ const ICONS: Record<string, typeof FileText> = {
   TXT: TypeIcon,
 };
 
-// --- Conversion engine (client-side, real conversions) ---
+import { convert as runConvert, detectKind, targetsFor, type Target } from "@/lib/converter";
 
-type Kind = "image" | "text" | "json" | "csv" | "audio" | "video" | "unknown";
 
-const IMAGE_TARGETS = ["PNG", "JPG", "WEBP"] as const;
-const TEXT_TARGETS = ["TXT", "MD", "HTML"] as const;
-const JSON_TARGETS = ["JSON", "CSV", "TXT"] as const;
-const CSV_TARGETS = ["CSV", "JSON", "TSV", "TXT"] as const;
-const MEDIA_PASSTHROUGH = ["Original (rename)"] as const;
-
-function detectKind(file: File): { kind: Kind; label: string } {
-  const name = file.name.toLowerCase();
-  const ext = name.split(".").pop() ?? "";
-  if (file.type.startsWith("image/") || ["png", "jpg", "jpeg", "webp", "gif", "bmp"].includes(ext))
-    return { kind: "image", label: ext.toUpperCase() || "IMAGE" };
-  if (ext === "json") return { kind: "json", label: "JSON" };
-  if (ext === "csv") return { kind: "csv", label: "CSV" };
-  if (ext === "tsv") return { kind: "csv", label: "TSV" };
-  if (["txt", "md", "html", "xml", "yaml", "yml", "log"].includes(ext))
-    return { kind: "text", label: ext.toUpperCase() };
-  if (file.type.startsWith("audio/")) return { kind: "audio", label: ext.toUpperCase() };
-  if (file.type.startsWith("video/")) return { kind: "video", label: ext.toUpperCase() };
-  return { kind: "unknown", label: ext.toUpperCase() || "FILE" };
-}
-
-function targetsFor(kind: Kind): readonly string[] {
-  switch (kind) {
-    case "image":
-      return IMAGE_TARGETS;
-    case "text":
-      return TEXT_TARGETS;
-    case "json":
-      return JSON_TARGETS;
-    case "csv":
-      return CSV_TARGETS;
-    case "audio":
-    case "video":
-      return MEDIA_PASSTHROUGH;
-    default:
-      return [];
-  }
-}
-
-async function convertImage(file: File, target: string): Promise<Blob> {
-  const bitmap = await createImageBitmap(file);
-  const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Canvas not supported");
-  if (target === "JPG") {
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-  ctx.drawImage(bitmap, 0, 0);
-  const mime =
-    target === "PNG" ? "image/png" : target === "JPG" ? "image/jpeg" : "image/webp";
-  const quality = target === "PNG" ? undefined : 0.92;
-  return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (b) => (b ? resolve(b) : reject(new Error("Encoding failed"))),
-      mime,
-      quality,
-    );
-  });
-}
-
-function jsonToCsv(rows: unknown): string {
-  if (!Array.isArray(rows) || rows.length === 0) return "";
-  const headers = Array.from(
-    rows.reduce<Set<string>>((set, r) => {
-      if (r && typeof r === "object") Object.keys(r).forEach((k) => set.add(k));
-      return set;
-    }, new Set()),
-  );
-  const esc = (v: unknown) => {
-    const s = v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  const body = rows.map((r) =>
-    headers.map((h) => esc((r as Record<string, unknown>)?.[h])).join(","),
-  );
-  return [headers.join(","), ...body].join("\n");
-}
-
-function parseCsv(text: string, delim = ","): string[][] {
-  const rows: string[][] = [];
-  let cur = "";
-  let row: string[] = [];
-  let inQ = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQ) {
-      if (c === '"' && text[i + 1] === '"') {
-        cur += '"';
-        i++;
-      } else if (c === '"') {
-        inQ = false;
-      } else cur += c;
-    } else {
-      if (c === '"') inQ = true;
-      else if (c === delim) {
-        row.push(cur);
-        cur = "";
-      } else if (c === "\n") {
-        row.push(cur);
-        rows.push(row);
-        row = [];
-        cur = "";
-      } else if (c === "\r") {
-        // skip
-      } else cur += c;
-    }
-  }
-  if (cur.length || row.length) {
-    row.push(cur);
-    rows.push(row);
-  }
-  return rows;
-}
-
-async function convertText(file: File, sourceKind: Kind, target: string): Promise<Blob> {
-  const text = await file.text();
-  if (sourceKind === "json") {
-    const data = JSON.parse(text);
-    if (target === "CSV") return new Blob([jsonToCsv(data)], { type: "text/csv" });
-    if (target === "TXT")
-      return new Blob([typeof data === "string" ? data : JSON.stringify(data, null, 2)], {
-        type: "text/plain",
-      });
-    return new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  }
-  if (sourceKind === "csv") {
-    const delim = file.name.toLowerCase().endsWith(".tsv") ? "\t" : ",";
-    const rows = parseCsv(text, delim);
-    if (target === "JSON") {
-      const [headers, ...body] = rows;
-      const objs = body
-        .filter((r) => r.some((c) => c !== ""))
-        .map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i] ?? ""])));
-      return new Blob([JSON.stringify(objs, null, 2)], { type: "application/json" });
-    }
-    if (target === "TSV")
-      return new Blob([rows.map((r) => r.join("\t")).join("\n")], { type: "text/tab-separated-values" });
-    if (target === "CSV")
-      return new Blob([rows.map((r) => r.map((c) => (/[",\n]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(",")).join("\n")], { type: "text/csv" });
-    return new Blob([text], { type: "text/plain" });
-  }
-  // generic text
-  if (target === "HTML") {
-    const escaped = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-    return new Blob(
-      [`<!doctype html><meta charset="utf-8"><pre>${escaped}</pre>`],
-      { type: "text/html" },
-    );
-  }
-  return new Blob([text], { type: target === "MD" ? "text/markdown" : "text/plain" });
-}
-
-function extFor(target: string): string {
-  return target.toLowerCase();
-}
-
-function baseName(name: string) {
-  const i = name.lastIndexOf(".");
-  return i > 0 ? name.slice(0, i) : name;
-}
-
-const POPULAR = ["PNG → JPG", "JPG → WEBP", "WEBP → PNG", "JSON → CSV", "CSV → JSON", "TXT → HTML"];
+const POPULAR = ["PNG → JPG", "JPG → PDF", "PDF → TXT", "DOCX → HTML", "XLSX → CSV", "JSON → YAML"];
 
 function Index() {
   const [query, setQuery] = useState("");
@@ -284,7 +116,7 @@ function Index() {
     setFile(f);
     if (f) {
       const t = targetsFor(detectKind(f).kind);
-      setTarget(t[0] ?? "");
+      setTarget(t[0]?.ext ?? "");
     } else {
       setTarget("");
     }
@@ -301,24 +133,9 @@ function Index() {
     setError(null);
     setResult(null);
     try {
-      let blob: Blob;
-      let outName: string;
-      if (detected.kind === "image" && (IMAGE_TARGETS as readonly string[]).includes(target)) {
-        blob = await convertImage(file, target);
-        outName = `${baseName(file.name)}.${extFor(target)}`;
-      } else if (
-        (detected.kind === "text" || detected.kind === "json" || detected.kind === "csv") &&
-        target !== "Original (rename)"
-      ) {
-        blob = await convertText(file, detected.kind, target);
-        outName = `${baseName(file.name)}.${extFor(target)}`;
-      } else {
-        // passthrough (media rename or unknown)
-        blob = file;
-        outName = `${baseName(file.name)}.${extFor(target === "Original (rename)" ? file.name.split(".").pop() ?? "bin" : target)}`;
-      }
+      const { blob, filename } = await runConvert(file, detected.kind, target);
       const url = URL.createObjectURL(blob);
-      setResult({ url, name: outName, size: blob.size });
+      setResult({ url, name: filename, size: blob.size });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Conversion failed");
     } finally {
@@ -387,7 +204,7 @@ function Index() {
                 <div>
                   <p className="font-medium text-ink">Drop a file here or click to browse</p>
                   <p className="mt-1 text-xs text-ink-subtle">
-                    Images, JSON, CSV, TSV, TXT, MD, HTML — converted locally
+                    Images, PDF, DOCX, XLSX, JSON, CSV, MD, HTML, YAML, XML — all local
                   </p>
                 </div>
               </button>
@@ -430,8 +247,8 @@ function Index() {
                         onChange={(e) => setTarget(e.target.value)}
                         className="appearance-none rounded bg-card py-1.5 pl-3 pr-8 text-sm font-medium text-ink ring-1 ring-ink/10 focus:outline-none focus:ring-ink/30"
                       >
-                        {targets.map((t) => (
-                          <option key={t} value={t}>{t}</option>
+                        {targets.map((t: Target) => (
+                          <option key={t.ext} value={t.ext}>{t.label}</option>
                         ))}
                       </select>
                       <ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-ink-subtle" />
@@ -531,8 +348,8 @@ function Index() {
             <div className="max-w-[56ch]">
               <h2 className="mb-2 text-2xl font-semibold text-ink">Conversion Families</h2>
               <p className="text-pretty text-ink-muted">
-                Working today: Images (PNG/JPG/WEBP), JSON ↔ CSV/TSV, text formats. More families
-                coming online.
+                Images, PDF, DOCX, spreadsheets, structured data, and text — all converted in
+                your browser with no upload.
               </p>
             </div>
             <div className="relative w-full md:w-80">
