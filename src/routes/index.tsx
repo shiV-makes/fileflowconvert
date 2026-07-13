@@ -204,7 +204,7 @@ function Index() {
                 <div>
                   <p className="font-medium text-ink">Drop a file here or click to browse</p>
                   <p className="mt-1 text-xs text-ink-subtle">
-                    Images, JSON, CSV, TSV, TXT, MD, HTML — converted locally
+                    Images, PDF, DOCX, XLSX, JSON, CSV, MD, HTML, YAML, XML — all local
                   </p>
                 </div>
               </button>
