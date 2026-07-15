@@ -41,23 +41,12 @@ type Family = {
 };
 
 const FAMILIES: Family[] = [
-  { code: "DOC", name: "Documents", formats: "PDF, DOCX, TXT, ODT, RTF, EPUB", count: 24 },
-  { code: "IMG", name: "Images", formats: "PNG, JPG, WEBP, AVIF, HEIC, SVG", count: 42 },
-  { code: "VID", name: "Video", formats: "MP4, MOV, MKV, WEBM, AVI", count: 28 },
-  { code: "AUD", name: "Audio", formats: "MP3, WAV, FLAC, M4A, OGG", count: 18 },
-  { code: "ARC", name: "Archives", formats: "ZIP, 7Z, RAR, TAR, GZ", count: 10 },
-  { code: "DAT", name: "Code & Data", formats: "JSON, XML, CSV, YAML, SQL", count: 16 },
-  { code: "3D", name: "CAD / 3D", formats: "STL, OBJ, FBX, GLTF, PLY", count: 14 },
-  { code: "XLS", name: "Spreadsheets", formats: "XLSX, XLS, CSV, TSV, ODS", count: 12 },
-  { code: "PPT", name: "Presentations", formats: "PPTX, PPT, ODP, PDF", count: 9 },
-  { code: "EPB", name: "eBooks", formats: "EPUB, MOBI, AZW3, PDF", count: 11 },
-  { code: "TTF", name: "Fonts", formats: "TTF, OTF, WOFF, WOFF2", count: 8 },
-  { code: "OCR", name: "OCR", formats: "Image → text, 40+ languages", count: 6 },
-  { code: "AI", name: "AI Image Tools", formats: "Upscale, background, colorize", count: 7 },
-  { code: "URL", name: "URL Tools", formats: "URL → PDF, screenshot, markdown", count: 8 },
-  { code: "YT", name: "Video Extractors", formats: "YouTube, TikTok, Vimeo, IG", count: 12 },
-  { code: "QR", name: "QR & Barcodes", formats: "QR, UPC, EAN, Code128", count: 5 },
-  { code: "TXT", name: "Text Tools", formats: "Text ↔ Speech, MD ↔ HTML", count: 9 },
+  { code: "DOC", name: "Documents", formats: "PDF, DOCX, TXT, HTML, MD", count: 12 },
+  { code: "IMG", name: "Images", formats: "PNG, JPG, WEBP, BMP, SVG", count: 20 },
+  { code: "DAT", name: "Code & Data", formats: "JSON, XML, CSV, TSV, YAML", count: 16 },
+  { code: "XLS", name: "Spreadsheets", formats: "XLSX, XLS, ODS, CSV, TSV", count: 12 },
+  { code: "QR", name: "QR Codes", formats: "Text → QR PNG", count: 2 },
+  { code: "ARC", name: "Archives", formats: "ZIP wrap any file", count: 4 },
 ];
 
 const ICONS: Record<string, typeof FileText> = {
