@@ -74,18 +74,37 @@ import { convert as runConvert, detectKind, targetsFor, type Target } from "@/li
 
 const POPULAR = ["PNG → JPG", "JPG → PDF", "PDF → TXT", "DOCX → HTML", "XLSX → CSV", "JSON → YAML"];
 
+type FileItem = {
+  id: string;
+  file: File;
+  kind: ReturnType<typeof detectKind>;
+  status: "queued" | "converting" | "done" | "error";
+  result?: { url: string; name: string; size: number };
+  error?: string;
+};
+
+let idSeq = 0;
+const nextId = () => `f${++idSeq}_${Date.now()}`;
+
 function Index() {
   const [query, setQuery] = useState("");
-  const [file, setFile] = useState<File | null>(null);
+  const [items, setItems] = useState<FileItem[]>([]);
   const [target, setTarget] = useState<string>("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ url: string; name: string; size: number } | null>(null);
+  const [batchZip, setBatchZip] = useState<{ url: string; name: string; size: number } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const detected = useMemo(() => (file ? detectKind(file) : null), [file]);
-  const targets = useMemo(() => (detected ? targetsFor(detected.kind) : []), [detected]);
+  // Intersection of possible targets across all files. If empty, "zip" is always safe.
+  const commonTargets = useMemo<Target[]>(() => {
+    if (items.length === 0) return [];
+    const lists = items.map((it) => targetsFor(it.kind.kind));
+    const first = lists[0];
+    const inter = first.filter((t) => lists.every((l) => l.some((x) => x.ext === t.ext)));
+    if (inter.length === 0) return [{ ext: "zip", label: "ZIP (bundle originals)" }];
+    if (!inter.some((t) => t.ext === "zip")) inter.push({ ext: "zip", label: "ZIP" });
+    return inter;
+  }, [items]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -98,41 +117,91 @@ function Index() {
     );
   }, [query]);
 
-  const pickFile = (f: File | null) => {
-    if (result) URL.revokeObjectURL(result.url);
-    setResult(null);
-    setError(null);
-    setFile(f);
-    if (f) {
-      const t = targetsFor(detectKind(f).kind);
-      setTarget(t[0]?.ext ?? "");
-    } else {
-      setTarget("");
-    }
+  const clearResults = () => {
+    items.forEach((it) => it.result && URL.revokeObjectURL(it.result.url));
+    if (batchZip) URL.revokeObjectURL(batchZip.url);
+    setBatchZip(null);
   };
 
-  const handleFiles = useCallback((list: FileList | null) => {
-    if (!list || !list[0]) return;
-    pickFile(list[0]);
-  }, []);
+  const addFiles = useCallback((list: FileList | null) => {
+    if (!list || !list.length) return;
+    const incoming: FileItem[] = Array.from(list).map((file) => ({
+      id: nextId(),
+      file,
+      kind: detectKind(file),
+      status: "queued" as const,
+    }));
+    setItems((prev) => {
+      prev.forEach((it) => it.result && URL.revokeObjectURL(it.result.url));
+      return [
+        ...prev.map((p) => ({ ...p, status: "queued" as const, result: undefined, error: undefined })),
+        ...incoming,
+      ];
+    });
+    if (batchZip) URL.revokeObjectURL(batchZip.url);
+    setBatchZip(null);
+  }, [batchZip]);
 
-  const convert = async () => {
-    if (!file || !detected || !target) return;
+  useMemo(() => {
+    if (commonTargets.length && !commonTargets.some((t) => t.ext === target)) {
+      setTarget(commonTargets[0].ext);
+    }
+    if (commonTargets.length === 0 && target) setTarget("");
+  }, [commonTargets, target]);
+
+  const removeItem = (id: string) => {
+    setItems((prev) => {
+      const it = prev.find((p) => p.id === id);
+      if (it?.result) URL.revokeObjectURL(it.result.url);
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
+  const clearAll = () => {
+    clearResults();
+    setItems([]);
+    setTarget("");
+  };
+
+  const convertAll = async () => {
+    if (!items.length || !target) return;
     setBusy(true);
-    setError(null);
-    setResult(null);
-    try {
-      const { blob, filename } = await runConvert(file, detected.kind, target);
-      const url = URL.createObjectURL(blob);
-      setResult({ url, name: filename, size: blob.size });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Conversion failed");
-    } finally {
-      setBusy(false);
+    clearResults();
+
+    const JSZipMod = (await import("jszip")).default;
+    const zip = new JSZipMod();
+    const done: FileItem[] = [];
+    for (const it of items) {
+      setItems((prev) =>
+        prev.map((p) => (p.id === it.id ? { ...p, status: "converting", error: undefined, result: undefined } : p)),
+      );
+      try {
+        const { blob, filename } = await runConvert(it.file, it.kind.kind, target);
+        const url = URL.createObjectURL(blob);
+        const okItem: FileItem = {
+          ...it,
+          status: "done",
+          result: { url, name: filename, size: blob.size },
+        };
+        done.push(okItem);
+        setItems((prev) => prev.map((p) => (p.id === it.id ? okItem : p)));
+        zip.file(filename, blob);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Conversion failed";
+        const failed: FileItem = { ...it, status: "error", error: msg };
+        setItems((prev) => prev.map((p) => (p.id === it.id ? failed : p)));
+      }
     }
+
+    if (done.length > 1) {
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const zipName = `fileflow-batch-${done.length}-files.zip`;
+      setBatchZip({ url: URL.createObjectURL(zipBlob), name: zipName, size: zipBlob.size });
+    }
+    setBusy(false);
   };
 
-  const canConvert = !!file && !!target && !busy;
+  const canConvert = items.length > 0 && !!target && !busy;
 
   return (
     <div className="min-h-screen bg-surface text-ink">
@@ -156,7 +225,7 @@ function Index() {
             Convert any file format instantly
           </h1>
           <p className="mb-12 max-w-[48ch] text-pretty text-lg text-ink-muted">
-            Real conversions running right in your browser. No uploads, no accounts, no waiting.
+            Batch convert files right in your browser. No uploads, no accounts, no waiting.
           </p>
 
           {/* Converter Widget */}
@@ -164,11 +233,15 @@ function Index() {
             <input
               ref={inputRef}
               type="file"
+              multiple
               className="hidden"
-              onChange={(e) => handleFiles(e.target.files)}
+              onChange={(e) => {
+                addFiles(e.target.files);
+                e.currentTarget.value = "";
+              }}
             />
 
-            {!file && (
+            {items.length === 0 && (
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
@@ -180,7 +253,7 @@ function Index() {
                 onDrop={(e) => {
                   e.preventDefault();
                   setDragOver(false);
-                  handleFiles(e.dataTransfer.files);
+                  addFiles(e.dataTransfer.files);
                 }}
                 className={
                   "flex w-full flex-col items-center gap-4 rounded-xl border-2 border-dashed bg-card p-12 transition-colors " +
@@ -191,104 +264,159 @@ function Index() {
                   <Plus className="size-5 text-ink-subtle" />
                 </div>
                 <div>
-                  <p className="font-medium text-ink">Drop a file here or click to browse</p>
+                  <p className="font-medium text-ink">Drop files here or click to browse</p>
                   <p className="mt-1 text-xs text-ink-subtle">
-                    Images, PDF, DOCX, XLSX, JSON, CSV, MD, HTML, YAML, XML — all local
+                    Select multiple files — convert them all to the same format at once
                   </p>
                 </div>
               </button>
             )}
 
-            {file && (
-              <div className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-ink/5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded bg-muted ring-1 ring-ink/5">
-                      <FileText className="size-4 text-ink" />
-                    </div>
-                    <div className="min-w-0 text-left">
-                      <p className="truncate text-sm font-medium text-ink">{file.name}</p>
-                      <p className="text-xs text-ink-subtle">
-                        {(file.size / 1024).toFixed(1)} KB · Detected {detected?.label}
-                      </p>
-                    </div>
+            {items.length > 0 && (
+              <div
+                className="flex flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-ink/5"
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  addFiles(e.dataTransfer.files);
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <p className="text-left text-xs font-medium text-ink-muted">
+                    {items.length} file{items.length === 1 ? "" : "s"} queued
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => inputRef.current?.click()}
+                      className="flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-ink-muted hover:bg-muted hover:text-ink"
+                    >
+                      <Plus className="size-3" /> Add more
+                    </button>
+                    <button
+                      onClick={clearAll}
+                      className="rounded px-2 py-1 text-xs font-medium text-ink-muted hover:bg-muted hover:text-ink"
+                    >
+                      Clear all
+                    </button>
                   </div>
-                  <button
-                    onClick={() => pickFile(null)}
-                    className="rounded p-1.5 text-ink-subtle hover:bg-muted hover:text-ink"
-                    aria-label="Remove file"
-                  >
-                    <X className="size-4" />
-                  </button>
                 </div>
 
-                {targets.length === 0 ? (
-                  <p className="rounded bg-muted px-3 py-2 text-left text-xs text-ink-muted ring-1 ring-ink/5">
-                    No client-side conversion available for this file type yet. Try an image, JSON,
-                    CSV, or text file.
-                  </p>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2 rounded bg-muted p-2 ring-1 ring-ink/5">
-                    <span className="pl-2 text-xs text-ink-muted">Convert to</span>
-                    <div className="relative">
-                      <select
-                        value={target}
-                        onChange={(e) => setTarget(e.target.value)}
-                        className="appearance-none rounded bg-card py-1.5 pl-3 pr-8 text-sm font-medium text-ink ring-1 ring-ink/10 focus:outline-none focus:ring-ink/30"
-                      >
-                        {targets.map((t: Target) => (
-                          <option key={t.ext} value={t.ext}>{t.label}</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-ink-subtle" />
-                    </div>
-                    <div className="ml-auto flex gap-2">
-                      <button
-                        onClick={convert}
-                        disabled={!canConvert}
-                        className="flex items-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-                      >
-                        {busy ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Zap className="size-3.5" />
+                <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+                  {items.map((it) => (
+                    <li
+                      key={it.id}
+                      className="flex items-center justify-between gap-3 rounded bg-muted/60 px-3 py-2 ring-1 ring-ink/5"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded bg-card ring-1 ring-ink/5">
+                          {it.status === "converting" ? (
+                            <Loader2 className="size-3.5 animate-spin text-ink-subtle" />
+                          ) : it.status === "done" ? (
+                            <CheckCircle2 className="size-3.5 text-brand" />
+                          ) : it.status === "error" ? (
+                            <X className="size-3.5 text-destructive" />
+                          ) : (
+                            <FileText className="size-3.5 text-ink" />
+                          )}
+                        </div>
+                        <div className="min-w-0 text-left">
+                          <p className="truncate text-xs font-medium text-ink">{it.file.name}</p>
+                          <p className="truncate text-[10px] text-ink-subtle">
+                            {(it.file.size / 1024).toFixed(1)} KB · {it.kind.label}
+                            {it.error ? ` · ${it.error}` : ""}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        {it.result && (
+                          <a
+                            href={it.result.url}
+                            download={it.result.name}
+                            className="rounded p-1.5 text-ink-subtle hover:bg-card hover:text-ink"
+                            aria-label={`Download ${it.result.name}`}
+                          >
+                            <Download className="size-3.5" />
+                          </a>
                         )}
-                        {busy ? "Converting..." : "Convert"}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                        <button
+                          onClick={() => removeItem(it.id)}
+                          className="rounded p-1.5 text-ink-subtle hover:bg-card hover:text-ink"
+                          aria-label="Remove file"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
 
-                {error && (
-                  <p className="rounded bg-destructive/10 px-3 py-2 text-left text-xs text-destructive ring-1 ring-destructive/20">
-                    {error}
+                <div className="flex flex-wrap items-center gap-2 rounded bg-muted p-2 ring-1 ring-ink/5">
+                  <span className="pl-2 text-xs text-ink-muted">Convert all to</span>
+                  <div className="relative">
+                    <select
+                      value={target}
+                      onChange={(e) => setTarget(e.target.value)}
+                      className="appearance-none rounded bg-card py-1.5 pl-3 pr-8 text-sm font-medium text-ink ring-1 ring-ink/10 focus:outline-none focus:ring-ink/30"
+                    >
+                      {commonTargets.map((t) => (
+                        <option key={t.ext} value={t.ext}>{t.label}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-ink-subtle" />
+                  </div>
+                  <div className="ml-auto flex gap-2">
+                    <button
+                      onClick={convertAll}
+                      disabled={!canConvert}
+                      className="flex items-center gap-1.5 rounded bg-brand px-4 py-1.5 text-sm font-medium text-brand-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+                    >
+                      {busy ? (
+                        <Loader2 className="size-3.5 animate-spin" />
+                      ) : (
+                        <Zap className="size-3.5" />
+                      )}
+                      {busy ? "Converting..." : `Convert ${items.length}`}
+                    </button>
+                  </div>
+                </div>
+
+                {commonTargets.length === 1 && commonTargets[0].ext === "zip" && (
+                  <p className="rounded bg-muted px-3 py-2 text-left text-xs text-ink-muted ring-1 ring-ink/5">
+                    Mixed file types — the only shared target is a ZIP bundle. Upload files of the
+                    same family to see more targets.
                   </p>
                 )}
 
-                {result && (
+                {batchZip && (
                   <div className="flex items-center justify-between gap-3 rounded-lg bg-brand/5 p-3 ring-1 ring-brand/20">
                     <div className="flex min-w-0 items-center gap-2 text-left">
-                      <CheckCircle2 className="size-4 shrink-0 text-brand" />
+                      <Archive className="size-4 shrink-0 text-brand" />
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-ink">{result.name}</p>
+                        <p className="truncate text-sm font-medium text-ink">{batchZip.name}</p>
                         <p className="text-xs text-ink-subtle">
-                          {(result.size / 1024).toFixed(1)} KB · Ready
+                          {(batchZip.size / 1024).toFixed(1)} KB · All conversions bundled
                         </p>
                       </div>
                     </div>
                     <a
-                      href={result.url}
-                      download={result.name}
+                      href={batchZip.url}
+                      download={batchZip.name}
                       className="flex shrink-0 items-center gap-1.5 rounded bg-ink px-3 py-1.5 text-sm font-medium text-surface hover:opacity-90"
                     >
                       <Download className="size-3.5" />
-                      Download
+                      Download all
                     </a>
                   </div>
                 )}
               </div>
             )}
           </div>
+
 
           {/* Popular Chips */}
           <div className="mt-8 flex flex-wrap justify-center gap-2">
